@@ -1,0 +1,52 @@
+[package]
+name = "nwws-http"
+version = "0.1.0"
+authors = ["Will Glynn <will@willglynn.com>"]
+edition = "2021"
+rust-version = "1.56"
+description = "HTTP bindings for the NOAA Weather Wire Service"
+repository = "https://github.com/willglynn/nwws-http"
+license = "MIT OR Apache-2.0"
+keywords = ["weather", "noaa", "nwws"]
+categories = ["api-bindings", "science"]
+
+[dependencies]
+hyper = { version = "0.14", features = ["stream"] }
+log = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+url = "2.2"
+
+# client
+async-sse = { version = "5.1", optional = true }
+
+# server
+nwws-oi = { version = "0.1", optional = true }
+tokio = { version = "1.16", optional = true }
+tokio-stream = { version = "0.1.8", optional = true }
+futures = { version = "0.3", optional = true }
+bytes = { version = "1.1", optional = true }
+
+# nwws-http-server
+env_logger = { version = "0.9", optional = true }
+
+[features]
+default = ["client"]
+client = ["hyper/client"]
+server = [
+    "nwws-oi",
+    "hyper/server", "hyper/http1", "hyper/http2", "hyper/tcp",
+    "tokio/sync", "tokio/macros",
+    "tokio-stream/sync",
+    "futures",
+    "bytes"
+]
+
+[[bin]]
+name = "nwws-http-server"
+required-features = ["server", "env_logger"]
+
+[profile.release]
+lto = true
+codegen-units = 1

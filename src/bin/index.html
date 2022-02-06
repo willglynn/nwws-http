@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>nwws-http-server</title>
+  <style>
+    body {
+      background: #f2f2f2;
+      color: #222;
+      margin: 1em;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    section, hr {
+      text-align: left;
+      margin: 3em auto;
+      width: 50em;
+    }
+    hr {
+      color: #ccc;
+    }
+    h1 {
+      margin: 0.5em 0;
+      font-size: 2em;
+    }
+    a:link, a:visited {
+      color: #00f;
+    }
+
+    table {
+      width: 100%;
+      border-spacing: 2px;
+    }
+    th {
+      color: #222;
+      border-bottom: 1px solid #222;
+      padding: 4px;
+      text-align: left;
+    }
+
+    .connect td {
+      text-align: center;
+    }
+    .error td {
+      text-align: center;
+      color: #f00;
+    }
+    .message td {
+      font-family: monospace;
+      white-space: pre;
+      padding: 1em;
+      margin: 1em 2em;
+      background: #fff;
+      color: #000;
+    }
+    .null {
+      text-align: center;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <section>
+    <h1>About</h1>
+    <p>This is an <code>nwws-http</code> server. It provides real-time access to the
+      <a href="https://www.weather.gov/nwws/">NOAA Weather Wire Service</a>, but it is operated independently.</p>
+
+    <p>See the <a href="https://github.com/willglynn/nwws-http"><code>nwws-http</code> repository</a> for documentation
+      about this software, including how to run your own server.</p>
+  </section>
+  <hr/>
+  <section>
+    <h1>Demo</h1>
+    <table>
+      <thead>
+        <th width="15%">TTAAII</th>
+        <th width="15%">CCCC</th>
+        <th width="30%">Issue</th>
+        <th width="15%">AWIPS ID</th>
+        <th width="25%">NWWS-OI ID</th>
+      </thead>
+      <tbody id="demo"></tbody>
+    </table>
+  </section>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Presentation:
+        var demo = document.getElementById('demo');
+        function td(text) {
+          var e = document.createElement('td');
+          if (text === null) {
+            e.className = 'null';
+            e.appendChild(document.createTextNode('-'));
+          } else {
+            e.appendChild(document.createTextNode(text));
+          }
+          return e;
+        }
+        function row(record) {
+          var e = document.createElement('tr');
+          e.className = 'record';
+          e.appendChild(td(record.ttaaii));
+          e.appendChild(td(record.cccc));
+          e.appendChild(td(record.issue));
+          e.appendChild(td(record.awipsId));
+          e.appendChild(td(record.nwwsOiId));
+          show('message', record.message);
+          demo.insertBefore(e, demo.firstElementChild);
+        }
+        function show(className, message) {
+          var e = document.createElement('tr')
+          e.className = className;
+          var cell = td(message);
+          cell.colSpan = 5;
+          e.appendChild(cell);
+          demo.insertBefore(e, demo.firstElementChild);
+          while (demo.childElementCount >= 100) {
+            demo.removeChild(demo.lastElementChild);
+          }
+        }
+
+        // Connectivity:
+        var eventSource = new EventSource('/stream');
+        eventSource.onopen = function() {
+          show('connect', 'connected');
+          console.log('connected');
+        }
+        eventSource.onerror = function(e) {
+          show('error', 'error')
+          console.error('error', e);
+        }
+        eventSource.onmessage = function(e) {
+          var message = JSON.parse(e.data);
+          row(message);
+          console.log('message', message);
+        }
+    })
+  </script>
+</body>
+</html>
