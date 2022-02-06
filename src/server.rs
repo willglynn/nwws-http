@@ -3,12 +3,11 @@ use bytes::Bytes;
 use futures::StreamExt;
 use hyper::http::{header, Request};
 use hyper::{Body, Method, Response, StatusCode};
-use nwws_oi::{ConnectionState, StreamEvent};
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use tokio::sync::{broadcast, watch, RwLock};
+use tokio::sync::{broadcast, RwLock};
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -18,7 +17,7 @@ struct Record {
     cccc: String,
     awips_id: Option<String>,
     id: Option<String>,
-    sse: Bytes,
+    sse_raw: Bytes,
 }
 
 impl<'a> From<&'a Record> for crate::FilterItem<'a> {
@@ -54,45 +53,41 @@ impl From<crate::Message> for Record {
 
         buffer.shrink_to_fit();
 
-        let sse = Bytes::from(buffer);
+        let sse_raw = Bytes::from(buffer);
 
         Self {
             ttaaii: m.ttaaii,
             cccc: m.cccc,
             awips_id: m.awips_id,
             id: m.nwws_oi_id,
-            sse,
+            sse_raw,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct NwwsOiStream {
+pub struct Endpoint {
     _task: JoinHandle<()>,
     recent: Arc<RwLock<VecDeque<Arc<Record>>>>,
     broadcast: broadcast::Sender<Arc<Record>>,
-    connection_state: watch::Receiver<ConnectionState>,
 }
 
-impl NwwsOiStream {
-    pub fn new<C: Into<nwws_oi::Config>>(config: C) -> Self {
-        let stream = nwws_oi::Stream::new(config);
+impl Endpoint {
+    pub fn new<S, I>(source: S) -> Self
+    where
+        S: futures::Stream<Item = I> + Send + 'static,
+        I: TryInto<Message> + Send,
+        I::Error: std::error::Error + Send,
+    {
         let (broadcast, _) = broadcast::channel(20);
-        let (connection_state_tx, connection_state) = watch::channel(ConnectionState::Disconnected);
         let recent = Arc::new(RwLock::new(VecDeque::with_capacity(100)));
 
-        let task = tokio::task::spawn(run(
-            stream,
-            recent.clone(),
-            broadcast.clone(),
-            connection_state_tx,
-        ));
+        let task = tokio::task::spawn(run(source, recent.clone(), broadcast.clone()));
 
         Self {
             _task: task,
             recent,
             broadcast,
-            connection_state,
         }
     }
 
@@ -132,29 +127,15 @@ impl NwwsOiStream {
         #[derive(serde::Serialize)]
         #[serde(rename = "camelCase")]
         struct Json {
-            connection_state: &'static str,
-            id_range: Option<(String, String)>,
+            ids: Vec<Option<String>>,
         }
 
-        let id_range = {
+        let ids = {
             let recent = self.recent.read().await;
-            match (
-                recent.iter().filter_map(|r| r.id.as_ref()).next(),
-                recent.iter().rev().filter_map(|r| r.id.as_ref()).next(),
-            ) {
-                (Some(a), Some(b)) => Some((a.clone(), b.clone())),
-                _ => None,
-            }
+            recent.iter().map(|i| i.id.clone()).collect()
         };
 
-        let response = Json {
-            connection_state: match *self.connection_state.borrow() {
-                ConnectionState::Connecting => "connecting",
-                ConnectionState::Connected => "connected",
-                ConnectionState::Disconnected => "disconnected",
-            },
-            id_range,
-        };
+        let response = Json { ids };
         let response = serde_json::to_vec(&response).expect("serialize");
 
         Response::builder()
@@ -201,11 +182,12 @@ impl NwwsOiStream {
             queue.into_iter()
         };
 
-        Response::builder()
+        let builder = Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "text/event-stream; charset=utf-8")
-            .header(header::CACHE_CONTROL, "private, no-cache")
-            .body(Body::wrap_stream(StreamBody { rx, filter, queue }))
+            .header(header::CACHE_CONTROL, "private, no-cache");
+
+        builder.body(Body::wrap_stream(StreamBody { rx, filter, queue }))
     }
 }
 
@@ -219,28 +201,30 @@ impl futures::Stream for StreamBody {
     type Item = hyper::http::Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(q) = self.queue.next() {
-            return Poll::Ready(Some(Ok(q.sse.clone())));
-        }
-
-        loop {
-            match Pin::new(&mut self.rx).poll_next(cx) {
-                Poll::Ready(Some(Ok(record))) => {
-                    if self.filter.matches(record.as_ref()) {
-                        return Poll::Ready(Some(Ok(record.sse.clone())));
-                    } else {
-                        // receive again
+        let record = if let Some(q) = self.queue.next() {
+            q
+        } else {
+            loop {
+                match Pin::new(&mut self.rx).poll_next(cx) {
+                    Poll::Ready(Some(Ok(record))) => {
+                        if self.filter.matches(record.as_ref()) {
+                            break record;
+                        } else {
+                            // receive again
+                        }
+                    }
+                    Poll::Ready(_) => {
+                        // client has lagged out
+                        return Poll::Ready(None);
+                    }
+                    Poll::Pending => {
+                        return Poll::Pending;
                     }
                 }
-                Poll::Ready(_) => {
-                    // client has lagged out
-                    return Poll::Ready(None);
-                }
-                Poll::Pending => {
-                    return Poll::Pending;
-                }
             }
-        }
+        };
+
+        Poll::Ready(Some(Ok(record.sse_raw.clone())))
     }
 }
 
@@ -253,23 +237,21 @@ fn error_response(
         .body(Body::from(message))
 }
 
-async fn run(
-    mut stream: nwws_oi::Stream,
+async fn run<S>(
+    stream: S,
     recent: Arc<RwLock<VecDeque<Arc<Record>>>>,
     broadcast: broadcast::Sender<Arc<Record>>,
-    connection_state: watch::Sender<ConnectionState>,
-) {
+) where
+    S: futures::Stream + Send + 'static,
+    <S as futures::Stream>::Item: TryInto<Message>,
+    <<S as futures::Stream>::Item as TryInto<Message>>::Error: std::error::Error,
+{
+    let mut stream = Box::pin(stream);
     while let Some(event) = stream.next().await {
-        match event {
-            StreamEvent::ConnectionState(state) => {
-                connection_state.send(state).expect("send connection state");
-            }
-            StreamEvent::Error(e) => {
-                log::error!("stream error: {}", e);
-            }
-            StreamEvent::Message(msg) => {
+        match event.try_into() {
+            Ok(message) => {
                 // Convert
-                let record = Arc::new(Record::from(msg));
+                let record = Arc::new(Record::from(message));
 
                 // Add to recent messages
                 let mut recent = recent.write().await;
@@ -283,6 +265,10 @@ async fn run(
                 // (Failures mean "no receiver", not "no one will ever receive", so ignore)
                 broadcast.send(record).ok();
             }
+            Err(e) => {
+                log::error!("stream error: {}", e);
+            }
         }
     }
+    panic!("stream ended");
 }

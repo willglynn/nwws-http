@@ -1,6 +1,6 @@
 use hyper::http::{HeaderValue, Response};
 use hyper::{header, Body, Request, StatusCode};
-use nwws_http::server::NwwsOiStream;
+use nwws_http::server::Endpoint;
 use std::convert::Infallible;
 use std::net::{Ipv6Addr, SocketAddr, SocketAddrV6};
 use std::sync::Arc;
@@ -32,10 +32,11 @@ async fn main() {
         .filter(|v| v != "")
         .is_some();
 
-    let stream = nwws_http::server::NwwsOiStream::new((username, password));
+    let source = nwws_http::NwwsOiStream::new((username, password));
+    let endpoint = nwws_http::server::Endpoint::new(source);
     let context = Arc::new(Context {
         allow_all_origins,
-        stream,
+        stream: endpoint,
     });
 
     let make_service =
@@ -61,7 +62,7 @@ async fn main() {
 
 #[derive(Debug)]
 struct Context {
-    stream: NwwsOiStream,
+    stream: Endpoint,
     allow_all_origins: bool,
 }
 

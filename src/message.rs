@@ -37,18 +37,3 @@ pub struct Message {
     /// The contents of the message
     pub message: String,
 }
-
-#[cfg(feature = "nwws-oi")]
-impl From<nwws_oi::Message> for Message {
-    fn from(v: nwws_oi::Message) -> Self {
-        Self {
-            ttaaii: v.ttaaii,
-            cccc: v.cccc,
-            awips_id: v.awips_id,
-            issue: v.issue,
-            nwws_oi_id: Some(v.id),
-            nwws_oi_delay_stamp: v.delay_stamp,
-            message: v.message,
-        }
-    }
-}
