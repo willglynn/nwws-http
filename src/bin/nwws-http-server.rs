@@ -1,12 +1,9 @@
-use futures::TryFutureExt;
 use hyper::http::{HeaderValue, Response};
 use hyper::{header, Body, Request, StatusCode};
 use std::convert::Infallible;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::net::{Ipv6Addr, SocketAddr, SocketAddrV6};
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Poll;
 
 #[tokio::main]
 async fn main() {
@@ -34,7 +31,7 @@ async fn main() {
         .filter(|v| v != "")
         .is_some();
 
-    let endpoint = nwws_http::server::Endpoint::new(source);
+    let endpoint = nwws_http::server::Server::new(source);
     let context = Arc::new(Context {
         allow_all_origins,
         stream: endpoint,
@@ -63,7 +60,7 @@ async fn main() {
 
 #[derive(Debug)]
 struct Context {
-    stream: nwws_http::server::Endpoint,
+    stream: nwws_http::server::Server,
     allow_all_origins: bool,
 }
 
@@ -85,7 +82,7 @@ impl Context {
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
                 .body(include_str!("index.html").into()),
-            "/stream" => self.stream.handle_request(request).await,
+            "/stream" => self.stream.stream(request).await,
             _ => Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .header(header::CONTENT_TYPE, "text/plain")

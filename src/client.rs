@@ -1,9 +1,6 @@
-use futures::{FutureExt, StreamExt, TryStreamExt};
-use hyper::body::HttpBody;
+use futures::{StreamExt, TryStreamExt};
 use hyper::Body;
 use std::error::Error;
-use std::fmt::{write, Formatter};
-use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -95,15 +92,14 @@ impl Request {
 
         let inner = futures::stream::once(client.request(req))
             .flat_map(|result| match result {
-                Ok(mut response) => {
+                Ok(response) => {
                     log::info!("response: {:?}", response);
                     // todo: response.headers
                     let bytes = TryStreamExt::map_err(response.into_body(), |e| {
                         std::io::Error::new(std::io::ErrorKind::Other, e)
                     });
 
-                    let mut decoder = async_sse::decode(bytes.into_async_read());
-                    decoder
+                    async_sse::decode(bytes.into_async_read())
                         .filter_map(|decode| {
                             futures::future::ready(match decode {
                                 Ok(async_sse::Event::Retry(_)) => {
