@@ -73,11 +73,10 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    pub fn new<S, I>(source: S) -> Self
+    pub fn new<S, E>(source: S) -> Self
     where
-        S: futures::Stream<Item = I> + Send + 'static,
-        I: TryInto<Message> + Send,
-        I::Error: std::error::Error + Send,
+        S: futures::Stream<Item = Result<crate::Message, E>> + Send + 'static,
+        E: std::error::Error + Send + 'static,
     {
         let (broadcast, _) = broadcast::channel(20);
         let recent = Arc::new(RwLock::new(VecDeque::with_capacity(100)));
@@ -237,18 +236,17 @@ fn error_response(
         .body(Body::from(message))
 }
 
-async fn run<S>(
+async fn run<S, E>(
     stream: S,
     recent: Arc<RwLock<VecDeque<Arc<Record>>>>,
     broadcast: broadcast::Sender<Arc<Record>>,
 ) where
-    S: futures::Stream + Send + 'static,
-    <S as futures::Stream>::Item: TryInto<Message>,
-    <<S as futures::Stream>::Item as TryInto<Message>>::Error: std::error::Error,
+    S: futures::Stream<Item = Result<crate::Message, E>> + Send + 'static,
+    E: std::error::Error + Send + 'static,
 {
     let mut stream = Box::pin(stream);
     while let Some(event) = stream.next().await {
-        match event.try_into() {
+        match event {
             Ok(message) => {
                 // Convert
                 let record = Arc::new(Record::from(message));

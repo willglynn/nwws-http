@@ -4,6 +4,9 @@ pub use message::Message;
 mod filters;
 pub use filters::{Filter, FilterItem};
 
+mod source;
+pub use source::{Source, SourceError};
+
 #[cfg(feature = "client")]
 pub mod client;
 

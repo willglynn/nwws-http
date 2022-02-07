@@ -2,6 +2,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 pub struct NwwsOiStream(nwws_oi::Stream);
+impl std::fmt::Debug for NwwsOiStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NwwsOiStream").finish_non_exhaustive()
+    }
+}
 
 impl NwwsOiStream {
     pub fn new<C: Into<nwws_oi::Config>>(config: C) -> Self {

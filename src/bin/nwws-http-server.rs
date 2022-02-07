@@ -1,9 +1,12 @@
+use futures::TryFutureExt;
 use hyper::http::{HeaderValue, Response};
 use hyper::{header, Body, Request, StatusCode};
-use nwws_http::server::Endpoint;
 use std::convert::Infallible;
+use std::fmt::{Debug, Formatter};
 use std::net::{Ipv6Addr, SocketAddr, SocketAddrV6};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::Poll;
 
 #[tokio::main]
 async fn main() {
@@ -14,8 +17,7 @@ async fn main() {
         .parse_default_env()
         .init();
 
-    let username = std::env::var("NWWS_USERNAME").expect("NWWS_USERNAME must be set");
-    let password = std::env::var("NWWS_PASSWORD").expect("NWWS_PASSWORD must be set");
+    let source = nwws_http::Source::from_env();
 
     let addr: SocketAddr = std::env::var("LISTEN")
         .ok()
@@ -32,7 +34,6 @@ async fn main() {
         .filter(|v| v != "")
         .is_some();
 
-    let source = nwws_http::NwwsOiStream::new((username, password));
     let endpoint = nwws_http::server::Endpoint::new(source);
     let context = Arc::new(Context {
         allow_all_origins,
@@ -62,7 +63,7 @@ async fn main() {
 
 #[derive(Debug)]
 struct Context {
-    stream: Endpoint,
+    stream: nwws_http::server::Endpoint,
     allow_all_origins: bool,
 }
 
