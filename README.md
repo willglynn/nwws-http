@@ -17,26 +17,33 @@ A public instance is running on a best-effort basis at [nwws-http.fly.dev](https
 
 ## Protocol
 
-`nwws-http` uses [Server-Sent Events](https://en.wikipedia.org/wiki/Server-sent_events) to transmit NWWS messages over
-HTTP as they arrive. A typical exchange:
+`nwws-http` uses [Server-Sent Events](https://en.wikipedia.org/wiki/Server-sent_events) to re-transmit NWWS messages
+over HTTP as they are published. A typical exchange:
 
-```http request
+```http
 GET /stream HTTP/1.1
 Accept: text/event-stream
+```
 
+```
 HTTP/1.1 200 OK
 Content-Type: text/event-stream; charset=utf-8
 Cache-Control: private, no-cache
 
+data:{"ttaaii":"WGUS44","cccc":"KMOB","awipsId":"FLWMOB","issue":"2022-02-05T23:15:00+00:00","nwwsOiId":"29116.17989","message":"\n817\nWGUS44 KMOB 052315\nFLWMOB\n\nBULLETIN - IMMEDIATE BROADCAST REQUESTED\nFlood Warning\n…"}
 id:29116.17989
-data:{"ttaaii":"WGUS44","cccc":"KMOB","awips_id":"FLWMOB","issue":"2022-02-05T23:15:00+00:00","id":"29116.17989","message":"\n817\nWGUS44 KMOB 052315\nFLWMOB\n\nBULLETIN - IMMEDIATE BROADCAST REQUESTED\nFlood Warning\n…"}
 
+data:{"ttaaii":"NTXX99","cccc":"PHEB","awipsId":"TSTHEB","issue":"2022-02-05T23:15:00+00:00","nwwsOiId":"29116.17990","message":"\n818\nNTXX99 PHEB 052315\nTSTHEB\nredundant-side test from PTWC IRC\nRZRZRZRZRZRZRZRZRZRZRZRZRZRZ\nRZRZRZRZRZRZRZRZRZRZRZRZRZRZ\n"}
 id:29116.17990
-data:{"ttaaii":"NTXX99","cccc":"PHEB","awips_id":"TSTHEB","issue":"2022-02-05T23:15:00+00:00","id":"29116.17990","message":"\n818\nNTXX99 PHEB 052315\nTSTHEB\nredundant-side test from PTWC IRC\nRZRZRZRZRZRZRZRZRZRZRZRZRZRZ\nRZRZRZRZRZRZRZRZRZRZRZRZRZRZ\n"}
 
 ```
 
-The `/stream` endpoint supports filtering by `?cccc=…`, `?ttaaii=…`, and/or `?awips_id=…`.
+The `/stream` endpoint additionally supports:
+
+* Stream resumption via [`Last-Event-ID:`](https://html.spec.whatwg.org/multipage/server-sent-events.html#the-last-event-id-header)
+* Filtering via `?cccc=…`, `?ttaaii=…`, and/or `?awips_id=…`
+* Compression via [`Accept-Encoding: gzip`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Encoding)
+* Newline-delimited JSON via `Accept: application/x-ndjson`
 
 ## Rust crate
 
