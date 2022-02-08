@@ -1,6 +1,5 @@
 use bytes::Bytes;
-use log::trace;
-use miniz_oxide::deflate::core::{deflate_flags, CompressorOxide, TDEFLFlush, TDEFLStatus};
+use miniz_oxide::deflate::core::{CompressorOxide, TDEFLFlush, TDEFLStatus};
 use miniz_oxide::deflate::CompressionLevel;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -154,7 +153,7 @@ impl<S: futures::Stream<Item = hyper::http::Result<Bytes>>> futures::Stream for 
 
         match self.transform.write_block(&bytes, false) {
             Ok(block) => Poll::Ready(Some(Ok(block))),
-            Err(e) => Poll::Ready(None),
+            Err(_) => Poll::Ready(None),
         }
     }
 }

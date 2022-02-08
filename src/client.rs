@@ -13,7 +13,6 @@ impl Client {
     where
         C: hyper::client::connect::Connect + Clone + Send + Sync + 'static,
     {
-        let mut first = true;
         Self {
             inner: futures::stream::repeat_with(move || Request::new(&client, uri.clone()))
                 .flatten()

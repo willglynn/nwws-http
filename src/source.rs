@@ -1,4 +1,5 @@
 use crate::client::Client;
+use crate::NwwsOiStream;
 use std::pin::Pin;
 use std::task::Poll;
 
@@ -21,8 +22,9 @@ impl Source {
             std::env::var("NWWS_OI_USERNAME"),
             std::env::var("NWWS_OI_PASSWORD"),
         ) {
-            todo!()
+            Source::NwwsOi(NwwsOiStream::new((user, pass)))
         } else {
+            log::info!("defaulting to NWWS_HTTP_URI=https://nwws-http.fly.dev/stream");
             Source::Http(Client::for_uri(hyper::Uri::from_static(
                 "https://nwws-http.fly.dev/stream",
             )))

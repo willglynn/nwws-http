@@ -11,7 +11,7 @@ to text products as they become available over the web. NWWS-OI is closest, but 
 
 1. [Sign up](https://www.weather.gov/nwws/nwws_oi_request) for NWWS-OI credentials
 2. Receive credentials from the NWS by email
-3. Run the Docker image in this repository with `NWWS_USERNAME` and `NWWS_PASSWORD` environment variables
+3. Run the Docker image in this repository with `NWWS_OI_USERNAME` and `NWWS_OI_PASSWORD` environment variables
 
 A public instance is running on a best-effort basis at [nwws-http.fly.dev](https://nwws-http.fly.dev).
 
