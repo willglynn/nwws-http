@@ -2,7 +2,10 @@ use hyper::http::{header, Request};
 use hyper::{Body, Method, Response, StatusCode};
 
 mod buffer;
+use crate::server::buffer::{ContentEncoding, ContentType};
 use buffer::{Buffer, Subscription};
+
+mod gzip;
 
 #[derive(Debug)]
 pub struct Server {
@@ -77,7 +80,8 @@ impl Server {
             None
         };
 
-        let content_type = crate::server::buffer::ContentType::from(request.headers());
+        let content_type = ContentType::from(request.headers());
+        let content_encoding = ContentEncoding::from(request.headers());
 
         let body = self
             .buffer
@@ -85,12 +89,14 @@ impl Server {
                 last_event_id,
                 filter,
                 content_type,
+                content_encoding,
             })
             .await;
 
         let builder = Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, <&str>::from(content_type))
+            .header(header::CONTENT_ENCODING, <&str>::from(content_encoding))
             .header(header::CACHE_CONTROL, "private, no-cache");
 
         builder.body(Body::wrap_stream(body))

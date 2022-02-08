@@ -10,7 +10,7 @@ async fn main() {
     env_logger::builder()
         .filter(None, log::LevelFilter::Info)
         .filter_module("nwws_oi", log::LevelFilter::Info)
-        .filter_module("nwws_http", log::LevelFilter::Info)
+        .filter_module("nwws_http", log::LevelFilter::Trace)
         .parse_default_env()
         .init();
 

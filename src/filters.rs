@@ -13,6 +13,10 @@ impl Filter {
         Self::default()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.ttaaii.is_empty() && self.cccc.is_empty() && self.awips_id.is_empty()
+    }
+
     pub fn with_ttaaii<I: IntoIterator<Item = S>, S: Into<String>>(self, ttaaii: I) -> Self {
         Self {
             ttaaii: ttaaii.into_iter().map(|s| s.into()).collect(),
